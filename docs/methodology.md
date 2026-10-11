@@ -16,6 +16,24 @@ The illustrative anomaly scenario draws from `q = (0.58, 0.21, 0.14, 0.07)`. Thi
 
 All labels and records are synthetic. The app provides no inference about an actual institution or person.
 
+## Reading the interface
+
+The analysis starts with the fictional assignment rule and a plain-language reading of the **whole allocation**. The observed-versus-expected chart then shows the magnitude of the differences. Expected counts are averages over repeated allocations, not quotas. The largest share gap is selected descriptively; its size alone is not an adjusted finding about that court.
+
+The global headline uses a 5% reference and accounts for finite-simulation uncertainty:
+
+| Displayed reading | Condition |
+| --- | --- |
+| Unusual under the specified random-assignment model | The corrected Monte Carlo p-value is below `0.05` and the 95% simulation interval's upper endpoint is below `0.05`. |
+| No clear departure from the specified model | The interval's lower endpoint is above `0.05`. |
+| Simulation does not clearly resolve the reference | Neither condition holds, including when the interval touches or spans `0.05`. |
+
+With `n = 1`, the headline instead notes that one assignment cannot establish a stable allocation pattern. This is a presentation rule, not a new test: the underlying statistic, corrected p-value, simulation diagnostics, and numerical exports are unchanged. The interval concerns the null tail probability estimated by Monte Carlo, as detailed below. The 5% reference is not a boundary between fair and unfair processes. Absence of a clear departure does not prove randomness, and an unusual result does not establish misconduct.
+
+The comparison chart shows this run alongside the **first twelve complete count vectors** drawn from `Multinomial(n, p)` with fixed seed `271828`. It uses the same `n` and known null probabilities as the global test, regardless of which scenario generated the observed data. Each vector sums to `n`; the courts are not simulated as independent binomial counts. Examples are not selected for their similarity to the data, extremeness, or test results. They illustrate variation without adding a test, confidence band, or simultaneous inference. The global calculation uses all `20,000` simulations, not just the twelve displayed examples.
+
+The planned Court A reading remains separate from the global summary. The four-court Holm exploration, p-values, and technical details are available in expandable sections; **How to read this** explains assumptions and limits. **Data & run log** provides the same synthetic assignments and numerical analysis metadata for reproduction.
+
 ## Primary analysis: global multinomial comparison
 
 The global null hypothesis is that assignments follow all four defined probabilities. The discrepancy statistic is Pearson's statistic:
@@ -52,6 +70,8 @@ P(X_A >= k | n, p_A = 0.40)
 
 The tail includes the observed count and is calculated from the binomial distribution directly, without a normal approximation, using [`scipy.stats.binomtest` with `alternative="greater"`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binomtest.html). In particular, a zero observed count has an upper-tail p-value of one. This is a test for excess assignments; a deficit is not evidence against its one-sided alternative.
 
+The plain-language Court A reading describes an unusual excess only when the observed count exceeds its expectation and its exact upper-tail p-value is below `0.05`. A result at or above `0.05` is not a clear excess under this reading guide. A count equal to expectation is described as matching the expected count; a lower count receives an explicit reminder that the test does not assess a shortfall. This exact calculation has no Monte Carlo uncertainty interval, and its conclusion is not inferred from the global result. The Court A and global questions are separate, but their results are not statistically independent because they use the same allocation.
+
 Extremely small nonzero tails can underflow floating-point arithmetic. Such results carry an explicit underflow flag and a finite natural-log p-value. The interface displays a power of ten; JSON exports use `null` for the unrepresentable numeric p-value and retain its log value. Holm adjustment is also computed in log space. An event outside a zero-probability category's null support has a genuinely zero tail and is distinguished from numerical underflow.
 
 Preselection is part of the inferential claim. Selecting a target or test direction after viewing the results changes the question. In that situation, use the exploratory family below and disclose the selection; do not relabel a selected court as a preplanned target.
@@ -63,6 +83,8 @@ The exploratory table computes one exact upper-tail binomial p-value for each of
 For ordered raw p-values `p_(1) <= ... <= p_(m)` with `m = 4`, adjusted values are the cumulative maximum of `(m - j + 1) * p_(j)`, capped at one and returned to the original court order. Holm controls the family-wise error rate without requiring the tests to be independent, which matters because the category counts share a total.
 
 These values are labeled exploratory. Their adjustment covers the four displayed enrichment tests. It does not cover repeated searches over seeds, sample sizes, time windows, alternative directions, or other unreported analyses. The global test is the primary model check; the preselected target test is a planned secondary analysis. This ordering clarifies their roles without imposing a gatekeeping procedure or creating a separately corrected family for a combined claim such as "either test is significant."
+
+The three questions need not produce matching readings. For example, a global departure need not identify a court with a Holm-adjusted enrichment below 5%; a Court A result below 5% need not survive the four-court adjustment. Neither the observed count chart nor the twelve simulated examples overrides those separate calculations.
 
 ## Magnitude and interpretation
 

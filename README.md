@@ -4,6 +4,16 @@ A small Streamlit portfolio project for exploring statistical anomalies in a **f
 
 Each synthetic case is independently assigned to one of four generic courts. The app compares observed assignments with an explicitly defined allocation rule. It does not analyze case outcomes, estimate the probability of misconduct, or provide conclusive legal evidence.
 
+[Open the live demo](https://court-assignment-audit.streamlit.app/).
+
+## Start with the story
+
+The fictional registry gives Court A a 40% chance of receiving each new case, Court B 30%, Court C 20%, and Court D 10%. Random draws will not meet those shares exactly, so the question is whether the observed differences are unusual under that rule.
+
+The app leads with a plain-language summary of the whole allocation. Read the observed-versus-expected counts next, then compare this run with twelve complete simulated allocations of the same size. The largest share gap describes the size of a difference; it is not a separate test of the court with that gap.
+
+The planned Court A question appears separately below. P-values, the four-court Holm exploration, and calculation details are in expandable sections. **How to read this** explains the assumptions; **Data & run log** preserves the synthetic CSV and reproducibility metadata.
+
 ## Run the demo
 
 Use Python 3.12-3.13. From the project directory:
@@ -20,7 +30,7 @@ streamlit run app.py --server.address 127.0.0.1 --server.port 3062
 
 The requirements file installs the local analysis package as well as the pinned dependencies. The command above keeps the local demo at `http://127.0.0.1:3062`; the shared Streamlit configuration leaves network binding to the hosting environment.
 
-In the app, compare the null and illustrative anomaly scenarios. Inspect the observed-versus-expected chart, effect sizes, primary global test, and planned secondary Court A test. The exploratory table reports all four courts together with a multiple-testing adjustment.
+Use the sidebar to compare the null and illustrative anomaly scenarios, change the number of assignments, or try another dataset seed. The scenario describes the generating mechanism, not a guaranteed conclusion.
 
 To generate a reproducible synthetic example from the command line:
 
@@ -56,10 +66,15 @@ The generator seed reproduces the assignments. A separate Monte Carlo seed contr
 
 ## What the results mean
 
-- **Primary global comparison:** a Pearson discrepancy statistic compares the full count vector with the known allocation probabilities. Its p-value is calibrated by simulating independent multinomial samples under that rule, including when expected counts are small.
-- **Planned secondary Court A test:** an exact, one-sided binomial test asks whether Court A received unusually many assignments under its defined 40% probability. The target and direction are selected before generating or inspecting the data.
-- **Exploratory courts:** four one-sided enrichment tests are shown together with Holm-adjusted p-values. Use this table when investigating which courts stand out after looking at the assignments.
-- **Magnitude:** observed shares, differences from expected shares, and observed-to-expected ratios describe the size and direction of deviations. Total variation summarizes the overall share discrepancy. A p-value is not an effect size.
+| Question | Reading |
+| --- | --- |
+| Does the whole allocation fit the stated rule? | The primary global comparison uses Pearson's discrepancy, calibrated with complete multinomial simulations under the known probabilities. |
+| Did Court A receive unusually many cases? | A planned, exact upper-tail binomial test checks Court A against its 40% probability. The court and direction are chosen in advance; a shortfall is not tested. |
+| Which courts show an excess when all four are examined? | The optional exploration applies Holm adjustment to the complete family of four enrichment tests. It is a separate question and need not agree with either result above. |
+
+The global headline uses **5% as an explicit reading guide**. It says the allocation is unusual only when the corrected Monte Carlo p-value and the upper end of its 95% simulation interval are both below 5%. It says there is no clear departure only when the interval's lower end is above 5%. An interval that touches or crosses 5% receives a neutral reading because simulation uncertainty affects that comparison. A single assignment instead receives a reminder that it cannot establish a stable allocation pattern. The planned Court A reading uses its exact upper-tail p-value below 5%, without a Monte Carlo interval.
+
+Observed shares, percentage-point gaps, and observed-to-expected ratios show the size and direction of differences. Total variation summarizes the overall share discrepancy. The twelve visual examples use the same sample size and null probabilities, with fixed seed `271828`; they are the first joint multinomial draws, not examples selected to resemble or contrast with the observed data. They provide context, not an additional test or confidence band.
 
 A small p-value indicates incompatibility with the stated null model under the test's assumptions. It is **not** the probability that the null is true, that an assignment was manipulated, or that any person is responsible. A large p-value does not establish that the process is unbiased. Null simulations can produce small p-values, and anomaly simulations can fail to produce them.
 

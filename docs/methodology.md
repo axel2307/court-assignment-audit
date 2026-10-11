@@ -1,121 +1,122 @@
 # Methodology
 
-## Unit of analysis and defined mechanism
+## Designed data and the classroom question
 
-One row represents one synthetic case assignment. For a selected number of cases, `n`, the generator makes `n` independent categorical draws over Court A, Court B, Court C, and Court D. Each case appears once; there is no filtering by resolution, decision, or outcome.
+The public lesson contains a fixed, authored fixture of 60 invented cases involving one fictional company. Its assignments are literal teaching data, not a random sample, a seed-selected discovery, or records from an actual institution. Court A and the question about receiving extra assignments are chosen as part of the lesson design. This is not a claim that the displayed pattern was discovered in a prospectively collected dataset.
 
-The null allocation probabilities are fixed in advance:
-
-```text
-p = (0.40, 0.30, 0.20, 0.10)
-```
-
-If `X_i` is the count for court `i`, the count vector follows `Multinomial(n, p)` under the null. The counts sum to `n` and are dependent on one another even though the individual assignments are independent. Expected counts are `E_i = n * p_i`; they need not be equal or integers.
-
-The illustrative anomaly scenario draws from `q = (0.58, 0.21, 0.14, 0.07)`. This changes the data-generating mechanism while leaving the comparison rule `p` unchanged. Counts are sampled without forcing category totals. A scenario describes how data were generated; it does not guarantee a particular test result.
-
-All labels and records are synthetic. The app provides no inference about an actual institution or person.
-
-## Reading the interface
-
-The analysis starts with the fictional assignment rule and the **planned Court A enrichment question**. Its observed and expected counts lead into the exact binomial graphic described below, connecting a visible count difference with the probability of that count or a larger one. Expected counts are averages over repeated allocations, not quotas.
-
-The whole-allocation analysis follows separately and remains the primary model check. This teaching order does not change the hypotheses, inferential roles, calculations, or numerical exports. The four-court count chart describes the magnitude of differences; the largest share gap is selected descriptively and is not itself an adjusted finding about that court.
-
-The separate global headline uses a 5% reference and accounts for finite-simulation uncertainty:
-
-| Displayed reading | Condition |
-| --- | --- |
-| Unusual under the specified random-assignment model | The corrected Monte Carlo p-value is below `0.05` and the 95% simulation interval's upper endpoint is below `0.05`. |
-| No clear departure from the specified model | The interval's lower endpoint is above `0.05`. |
-| Simulation does not clearly resolve the reference | Neither condition holds, including when the interval touches or spans `0.05`. |
-
-With `n = 1`, the headline instead notes that one assignment cannot establish a stable allocation pattern. This is a presentation rule, not a new test: the underlying statistic, corrected p-value, simulation diagnostics, and numerical exports are unchanged. The interval concerns the null tail probability estimated by Monte Carlo, as detailed below. The 5% reference is not a boundary between fair and unfair processes. Absence of a clear departure does not prove randomness, and an unusual result does not establish misconduct.
-
-An optional, initially collapsed comparison chart shows this run alongside the **first twelve complete count vectors** drawn from `Multinomial(n, p)` with fixed seed `271828`. It uses the same `n` and known null probabilities as the global test, regardless of which scenario generated the observed data. Each vector sums to `n`; the courts are not simulated as independent binomial counts. Examples are not selected for their similarity to the data, extremeness, or test results. They illustrate variation without adding a test, confidence band, or simultaneous inference. The global calculation uses all `20,000` simulations, not just the twelve displayed examples.
-
-The four-court Holm exploration and technical details are available in expandable sections; **How to read this** explains assumptions and limits. **Data & run log** provides the same synthetic assignments and numerical analysis metadata for reproduction.
-
-## Primary analysis: global multinomial comparison
-
-The global null hypothesis is that assignments follow all four defined probabilities. The discrepancy statistic is Pearson's statistic:
+The full counts, in Court A through Court L order, are:
 
 ```text
-T = sum_i (X_i - E_i)^2 / E_i
+(10, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4)
 ```
 
-The app does not use an asymptotic chi-square approximation to turn this statistic into a p-value. Instead, it generates `B` count vectors from `Multinomial(n, p)` using an independent, recorded Monte Carlo seed, and computes the same statistic for every vector. This follows the general null-simulation approach described in the [SciPy Monte Carlo test documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.monte_carlo_test.html); the project implements its own multinomial calibration to expose simulation diagnostics.
+Each case appears once. The lesson does not filter on case outcome or resolution, measure a company's success in court, or infer benefit from an assignment. All company, case, and court labels are fictional.
 
-Let `b` be the number of simulated statistics at least as large as the observed statistic, including ties. Numerical comparisons allow a conservative tie tolerance of `64 * float64_epsilon * max(1, T_observed)`, subtracted from the observed statistic. The reported Monte Carlo p-value is:
+The beginner question is: **if each case independently had a one-in-twelve chance of going to Court A, how often would 60 cases produce ten or more assignments there?** The lesson moves from the visible records to the rule, simulated allocations, the exact distribution, the inclusive tail, and a conditional interpretation. The interface uses Spanish; these technical notes use English.
+
+## The stated assignment model
+
+Under the model, every case independently goes to one of twelve eligible courts with equal, constant probability:
 
 ```text
-p_MC = (b + 1) / (B + 1)
+p = (1/12, ..., 1/12)
+(X_A, ..., X_L) ~ Multinomial(60, p)
+X_A ~ Binomial(60, 1/12)
+E[X_A] = 60 * (1/12) = 5
 ```
 
-The added observation prevents a zero p-value and gives a finite-simulation correction. The smallest reportable value is `1 / (B + 1)`. A result at that floor means the simulation did not observe a statistic as extreme as the one analyzed; it is not evidence that the true tail probability is zero.
+Expected counts are averages across repeated allocations, not quotas. Giving a case to Court A does not reduce that court's chance on the next independent draw. The twelve court counts share a total of 60 and are therefore dependent, even though individual assignments are independent. The probabilities are stated inputs, not estimates fitted to the fixture.
 
-This calibration uses the discrete null distribution and remains suitable for sparse expected counts under the defined model. It cannot repair incorrect probabilities, dependent assignments, incomplete records, or a changing eligibility set.
+Real use would require a complete sampling frame selected independently of court destination, a defensible eligibility rule, and evidence that assignments have the assumed probabilities and dependence structure. Related cases, workload balancing, changing eligibility, or incomplete records can invalidate this model. A count of resolved cases is a different population. A Fisher or hypergeometric test is not the calculation here: the model specifies assignment probabilities rather than conditioning on contingency-table margins.
 
-The approximate Monte Carlo standard error is `sqrt(r * (1 - r) / B)`, where `r = b / B`. It describes uncertainty caused by finite simulation, not uncertainty about the truth of the model. This plug-in estimate is zero when `b = 0` or `b = B`; those zeros do **not** mean there is no simulation uncertainty.
+## Intuition from repeated allocations
 
-An exact 95% Clopper-Pearson binomial interval accompanies it. This interval describes uncertainty in the underlying null exceedance probability estimated by the simulations, not a confidence interval for a causal effect or the probability that the null is true. The Monte Carlo correction and this interval serve different purposes. Increase `B` for finer resolution, and retain the same seed to reproduce the calculation. If a conclusion depends on a value very close to a threshold, simulation precision matters. The app and CLI default to `B = 20,000` with Monte Carlo seed `271828`.
+Each simulation batch contains 1,000 **complete allocations of 60 cases**. For every allocation, 60 independent draws over all twelve courts produce one joint count vector that sums to 60. The code does not draw twelve independent binomial counts or force category totals. Court A's count is then read from each complete allocation.
 
-The fixed demo probabilities are all positive. The statistical library also handles zero-probability categories: a zero observed count contributes nothing to the statistic; a positive count is flagged as a null-support violation with an infinite statistic. In that boundary case, the model's exact tail is zero while the corrected simulation result stays at its resolution floor. The flag is necessary to distinguish the two.
+Batch numbers start at one. Batch `b` uses Python's `random.Random` with seed `271828 + b - 1` and twelve-way `randrange` draws. Repeating the batch number with the recorded implementation reproduces all its allocations. The fixture has no generation seed: seeds apply only to simulations, which never replace its records.
 
-## Planned secondary analysis: exact binomial enrichment
+The displayed match count is the number of simulated allocations with `X_A >= 10`. It is an observed simulation frequency, not the exact p-value or a second hypothesis test. The first reproducible batch happens to contain 26 such allocations; other batches need not. The exact probability implies an average of about 25.754 matches per 1,000 repetitions, not a requirement that a particular batch contain 26. These are counts of whole allocations, not counts of individual cases.
 
-Court A is the preselected target, and enrichment is the preselected direction. Under the null, its marginal count has distribution `Binomial(n, 0.40)`. For an observed target count `k`, the exact upper-tail p-value is:
+Repeating or selecting an attractive simulation batch cannot change the exact result. Exported batch metadata permits reproduction rather than treating an illustration as new evidence.
+
+## Exact count probabilities and the inclusive tail
+
+For an integer count `x` from zero through 60, the binomial probability is:
 
 ```text
-P(X_A >= k | n, p_A = 0.40)
+P(X_A = x) = C(60, x) * (1/12)^x * (11/12)^(60-x)
 ```
 
-The tail includes the observed count and is calculated from the binomial distribution directly, without a normal approximation, using [`scipy.stats.binomtest` with `alternative="greater"`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binomtest.html). In particular, a zero observed count has an upper-tail p-value of one. This is a test for excess assignments; a deficit is not evidence against its one-sided alternative.
+The plotted bars represent these discrete probabilities. There is no fitted normal curve, density smoothing, or area-based approximation. The expected marker is at five and the observed marker is at ten. Colour highlights counts at least as large as the threshold, including the threshold itself.
 
-The plain-language Court A reading describes an unusual excess only when the observed count exceeds its expectation and its exact upper-tail p-value is below `0.05`. A result at or above `0.05` is not a clear excess under this reading guide. A count equal to expectation is described as matching the expected count; a lower count receives an explicit reminder that the test does not assess a shortfall. This exact calculation has no Monte Carlo uncertainty interval, and its conclusion is not inferred from the global result. The Court A and global questions are separate, but their results are not statistically independent because they use the same allocation.
-
-The Court A graphic plots the discrete probability mass function: each bar at integer count `x` has height `P(X_A = x | n, p_A = 0.40)`. Markers locate the observed count `k` and expected count `0.40 * n`. Colour identifies the inclusive upper tail `x >= k`. The full distribution has support `0, ..., n`; the tail probability sums its probabilities from `k` through `n`. It is not an area under a smooth curve or a probability recomputed from a cropped display. There is no normal approximation, density smoothing, or renormalization of the displayed bars.
-
-The displayed range includes `k` and the expected-count marker. It omits at most `1e-6` of the total probability and, when the upper tail is positive, at most `1e-6` of that tail's probability. The relative-tail check uses log probabilities even when the tail is too small for a floating-point value. Cropping changes neither bar heights nor the reported tail probability.
-
-For probabilities from `0.01` through `0.5`, the app offers an approximate frequency per 100 repeated allocations, such as "40 in 100" for 40%. For probabilities from `1e-6` up to but excluding `0.01`, it uses "1 in X", with `X = 1 / p`. The repetitions are complete allocations of the same `n` cases under the same rule; the event is Court A receiving at least `k` cases. It is a conditional frequency interpretation, not the chance that the model is true, a prediction of the next allocation, or a guarantee about a finite set of repetitions. Larger probabilities and reciprocal counts above one million use the probability alone.
-
-Extremely small nonzero tails can underflow floating-point arithmetic. Such results carry an explicit underflow flag and a finite natural-log p-value. The interface displays a power of ten; JSON exports use `null` for the unrepresentable numeric p-value and retain its log value. Holm adjustment is also computed in log space. An event outside a zero-probability category's null support has a genuinely zero tail and is distinguished from numerical underflow.
-
-Preselection is part of the inferential claim. Selecting a target or test direction after viewing the results changes the question. In that situation, use the exploratory family below and disclose the selection; do not relabel a selected court as a preplanned target.
-
-## Exploratory comparisons and multiplicity
-
-The exploratory table computes one exact upper-tail binomial p-value for each of the four courts against that court's own null probability. It applies Holm's step-down adjustment to the entire four-test family.
-
-For ordered raw p-values `p_(1) <= ... <= p_(m)` with `m = 4`, adjusted values are the cumulative maximum of `(m - j + 1) * p_(j)`, capped at one and returned to the original court order. Holm controls the family-wise error rate without requiring the tests to be independent, which matters because the category counts share a total.
-
-These values are labeled exploratory. Their adjustment covers the four displayed enrichment tests. It does not cover repeated searches over seeds, sample sizes, time windows, alternative directions, or other unreported analyses. The global test is the primary model check; the preselected target test is a planned secondary analysis. This ordering clarifies their roles without imposing a gatekeeping procedure or creating a separately corrected family for a combined claim such as "either test is significant."
-
-The three questions need not produce matching readings. For example, a global departure need not identify a court with a Holm-adjusted enrichment below 5%; a Court A result below 5% need not survive the four-court adjustment. Neither the observed count chart nor the twelve simulated examples overrides those separate calculations.
-
-## Magnitude and interpretation
-
-For each court, the app reports the observed count and share, expected count and share, the share difference in percentage points, and the observed-to-expected count ratio. These describe deviation size and direction independently of a significance threshold.
-
-The overall total variation distance is half the sum of absolute share differences:
+The teaching question uses an upper tail:
 
 ```text
-TV = 0.5 * sum_i abs(X_i / n - p_i)
+P(X_A >= 10) = sum from x=10 to 60 of P(X_A = x)
 ```
 
-It lies between zero and one, with zero indicating matching observed and expected shares. It measures the fraction of probability mass that would need to be redistributed to align the two distributions; it does not identify how many individual assignments were improperly made. Unlike the Pearson statistic, TV directly summarizes the magnitude of the share discrepancy.
+| Quantity | Value under the stated model |
+| --- | ---: |
+| Expected Court A count | 5 |
+| Authored Court A count | 10 |
+| Difference from expectation | +5 cases; twice the expected count |
+| Probability of exactly 10 | 1.57071156% |
+| Probability of 10 or more | 2.57542547% |
+| Average number of allocations with 10 or more per 1,000 repetitions | 25.7542547 |
 
-Every p-value is conditional on the defined mechanism and the corresponding hypothesis. It describes the extremeness of the observed statistic under that model. It does not measure the probability of fraud, guilt, manipulation, or the null hypothesis itself. Statistical incompatibility also does not identify a cause. A non-small p-value is not proof that the allocation rule holds.
+The existing exact upper-tail calculation uses [`scipy.stats.binomtest` with `alternative="greater"`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binomtest.html). The inclusive result is the p-value for the planned Court A enrichment question. It is not the probability of exactly the observed count, a test for unusually few assignments, or a two-sided result. The lesson's exact-count and tail functions also allow direct numerical reproduction.
 
-This interpretation follows the [American Statistical Association's principles on p-values](https://www.amstat.org/asa/files/pdfs/P-ValueStatement.pdf): assess assumptions and effect size, report the analysis transparently, and avoid basing conclusions on a threshold alone.
+The chart may hide negligible tails to remain readable. The existing binomial-view helper retains the original bar heights, includes the threshold and expected marker, and limits total omitted probability to `1e-6`. For a positive upper tail, the omitted part is also at most `1e-6` of that tail's probability. Relative checks use log probabilities when needed. The displayed p-value always includes the full tail through 60; it is never recomputed from, or renormalized to, the visible bars.
 
-Case outcomes, selected subsets of resolved cases, estimated comparison probabilities, and contingency-table questions require different data definitions and analyses. They are outside this demo. A Fisher or hypergeometric test is not used because this simulation's null is a known-probability multinomial assignment process, not a comparison conditional on contingency-table margins.
+## Interpretation and hypothetical practice
 
-## Reproducibility and boundaries
+The conditional statement is: **under the stated rule, about 26 in 1,000 complete allocations of 60 cases would give Court A ten or more cases**. This frequency comes from the exact model. It does not promise a particular simulation count or predict which future allocation will be unusual.
 
-Reproduce an analysis with its generation seed, Monte Carlo seed, number of assignments, scenario, reference probabilities, and Monte Carlo sample count. Record software versions as random-number and numerical implementations can change across versions. Generation and calibration use separate random streams so changing simulation precision does not change the synthetic assignments.
+The probability is below a 5% reading reference, so this pattern would be uncommon under that rule. The authored fixture is a demonstration of that calculation, not empirical evidence that any institution used a different rule. A p-value is not the probability of fraud, guilt, misconduct, or the null hypothesis being true. Unusual outcomes do not establish a cause; ordinary outcomes do not prove randomness or fairness. This interpretation is consistent with the [American Statistical Association's principles on p-values](https://www.amstat.org/asa/files/pdfs/P-ValueStatement.pdf).
 
-The implementation validates counts and probabilities rather than silently repairing invalid inputs. Probability sums must equal one within absolute tolerance `1e-12`; normalization only removes rounding noise within that tolerance. Validation covers distribution tails against independent calculations, weighted probabilities, zero counts, multiplicity, invalid inputs, and seeded reproducibility. The analysis requires no network calls once dependencies are installed.
+The practice slider changes a **hypothetical threshold** `k` between zero and 15 while retaining `n = 60` and `p_A = 1/12`. It asks for `P(X_A >= k)` through the full possible count of 60. The practice range is not the distribution's support. At `k = 0`, the upper-tail probability is one; a threshold below five is not a test for a deficit.
 
-The model is deliberately small. Applying similar methods elsewhere requires a defensible allocation mechanism and an appropriate sampling frame before choosing the test. This demonstration supplies both by construction; it is not a ready-made conclusion about any real assignment process.
+Practice does not edit the 60 records, change the observed Court A count of ten, or specify a new allocation across the other eleven courts. Its threshold and result are stored separately in the manifest. No global or multiple-testing conclusion is inferred from moving the slider.
+
+## Reproduction and exports
+
+`lesson.py` owns the fixture, its counts, exact calculations, simulation batches, and export metadata. `lesson_records()` returns the teaching records; `lesson_counts()` returns a count tuple in `COURTS` order. `exact_count_probability(k)`, `exact_tail_probability(k)`, and `target_result(k=10)` reproduce the Court A calculations. `simulate_batch(batch_number)` reproduces a selected 1-based simulation batch.
+
+```bash
+python scripts/export_lesson.py --output artifacts/lesson --batch 1 --practice-threshold 12
+```
+
+The script writes `lesson.csv` and `lesson_manifest.json`. The CSV always contains the authored fixture. The manifest identifies its construction as `authored_teaching_fixture` and separates `dataset`, `model`, `observed_analysis`, `practice`, and `simulation`. It records the dataset counts and CSV SHA-256 checksum, software versions, and, when selected, the simulation's batch number, seed, complete allocation vectors, Court A counts, match count, and frequency. Omitting `--batch` exports without a simulation; omitting `--practice-threshold` avoids adding a hypothetical exercise.
+
+The browser uses the filenames `constructed_lesson_assignments.csv` and `lesson_run_manifest.json`. Its manifest records the current practice threshold and the last simulated batch, if one has been run. Practice reuses that batch for its optional simulated frequency; it does not generate replacement allocations or change the batch's original threshold-ten summary.
+
+Reproduction depends on the fixture version, model, batch number and seed, algorithm, and recorded software versions. The statistical calculations require no external services after dependency installation. All exported records and simulated allocations are invented; no uploaded dataset or external personal information is used.
+
+## Optional advanced analyses
+
+These library extensions are outside the beginner Streamlit lesson. They use the **current twelve-court fixture**, not the earlier four-court generator:
+
+```python
+from court_assignment_audit.lesson import COURTS, TARGET_PROBABILITY, lesson_counts
+from court_assignment_audit.statistics import (
+    exploratory_court_tests,
+    global_multinomial_test,
+)
+
+counts = lesson_counts()
+probabilities = (TARGET_PROBABILITY,) * len(COURTS)
+global_result = global_multinomial_test(
+    counts, probabilities, simulations=20_000, seed=271828
+)
+exploratory_results = exploratory_court_tests(counts, probabilities)
+```
+
+**Global model check.** Pearson's discrepancy, `sum((observed - expected)^2 / expected)`, compares the entire twelve-court allocation with its known probabilities. Calibration simulates complete multinomial vectors rather than using an asymptotic chi-square approximation. If `b` of `B` simulated discrepancies are at least as large as observed, including ties, the reported result is `(b + 1) / (B + 1)`. The finite correction prevents a zero simulation p-value; zero exceedances do not imply impossibility. Comparisons use the documented conservative floating-point tie tolerance in `statistics.py`.
+
+The approximate Monte Carlo standard error is `sqrt(r * (1-r) / B)`, where `r = b/B`. An exact 95% Clopper-Pearson interval describes uncertainty in the underlying null exceedance probability. Neither is uncertainty about guilt, causation, or whether the model is true. At `b = 0` or `b = B`, the plug-in standard error is zero but the interval still reflects simulation uncertainty. A threshold-based reading should remain cautious when this interval touches or crosses the threshold. This calibration is separate from the 1,000-allocation classroom illustration and from the exact Court A tail.
+
+**Exploratory enrichment.** One upper-tail binomial test per court forms a complete **twelve-test** family. Holm's step-down procedure orders the raw p-values, applies multipliers `12, 11, ..., 1`, takes cumulative maxima, caps at one, and returns them to court order. It controls the family-wise error rate without requiring independent court counts. The family includes courts that do not look unusual. Adjustment does not cover searching over datasets, targets, directions, filters, or other unreported analyses.
+
+The global question, planned Court A question, and exploratory family are distinct. They can produce different readings, and no gatekeeping rule or combined verdict is asserted. Holm does not adjust the global and planned results as a joint family. Generic library results retain effect sizes and log probabilities for very small tails; numerical underflow is flagged rather than interpreted as mathematical zero. Zero-probability support violations are separately identified.
+
+The previous four-court weighted generator and CLI remain a separate programmatic example. Their probabilities, generated records, seeds, and manifests do not describe or reproduce this lesson. For the classroom fixture, use `lesson.py` and `scripts/export_lesson.py`.

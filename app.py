@@ -1,470 +1,381 @@
-"""An explainable Streamlit case study using entirely invented assignments."""
+"""A guided classroom lesson built entirely from a constructed fictional case."""
 
-import math
+import json
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
 from court_assignment_audit.binomial_view import build_binomial_view
-from court_assignment_audit.charts import build_binomial_chart
-from court_assignment_audit.presentation import (
-    global_reading,
-    reference_allocations,
-    target_reading,
+from court_assignment_audit.lesson import (
+    N_CASES,
+    OBSERVED_A,
+    exact_count_probability,
+    exact_tail_probability,
+    lesson_csv,
+    lesson_manifest,
+    lesson_records,
+    simulate_batch,
+    target_result,
 )
-from court_assignment_audit.reporting import (
-    MC_SEED,
-    MC_SIMULATIONS,
-    assignments_csv,
-    build_run,
-    manifest_json,
+from court_assignment_audit.lesson_charts import (
+    build_lesson_distribution,
+    build_simulation_chart,
 )
-from court_assignment_audit.synthetic import COURTS, SimulationConfig
 
-st.set_page_config(page_title="Court Assignment Audit", page_icon="⚖️", layout="wide")
+st.set_page_config(
+    page_title="¿Diez veces en el mismo juzgado?", page_icon="🎲", layout="centered"
+)
+
+
+def percent(value: float, digits: int | None = None) -> str:
+    """Use a decimal comma without rounding a small practice probability to zero."""
+    if digits is None:
+        digits = 2 if value >= 0.001 else 4
+    return f"{100 * value:.{digits}f}".replace(".", ",") + " %"
 
 
 @st.cache_data(show_spinner=False)
-def simulate(n_cases: int, seed: int, scenario: str) -> dict:
-    return build_run(SimulationConfig(n_cases=n_cases, seed=seed, scenario=scenario))
+def classroom_simulation(batch_number: int):
+    return simulate_batch(batch_number)
 
 
-def p_text(value: float, *, underflow: bool = False, log_value: float = 0) -> str:
-    if underflow:
-        return f"10^({log_value / math.log(10):.1f})"
-    return f"{value:.3g}" if value >= 0.001 else f"{value:.2e}"
-
-
-def count_text(value: float) -> str:
-    return f"{value:,.1f}".rstrip("0").rstrip(".")
-
-
-with st.sidebar:
-    st.title("Try a different allocation")
-    scenario_label = st.selectbox(
-        "Assignment scenario", ["Null mechanism", "Illustrative anomaly"], key="scenario"
-    )
-    n_cases = st.number_input("Number of assignments", 1, 5000, 1000, key="n_cases")
-    seed = st.number_input("Dataset seed", 0, 2**32 - 1, 20261011, key="seed")
-    st.caption("Same settings, same invented dataset. Each case is one independent draw.")
-    with st.expander("What do the scenarios change?"):
-        st.write(
-            "Null mechanism generates cases with the stated 40% / 30% / 20% / 10% rule. "
-            "Illustrative anomaly changes the generating shares to 58% / 21% / 14% / 7%. "
-            "Both are compared with the original rule."
-        )
-        st.caption("A scenario name does not determine the conclusion; the generated counts do.")
-
-scenario = "null" if scenario_label == "Null mechanism" else "anomaly"
-config = SimulationConfig(n_cases=int(n_cases), seed=int(seed), scenario=scenario)
-run = simulate(config.n_cases, config.seed, config.scenario)
-dataset, global_result, target = run["dataset"], run["global"], run["target"]
-reading = global_reading(global_result, config.n_cases)
-court_a_reading = target_reading(target)
-binomial_view = build_binomial_view(target)
-
-summary = pd.DataFrame(
-    {
-        "Court": COURTS,
-        "Observed": [dataset.counts[court] for court in COURTS],
-        "Expected": [n_cases * p for p in config.null_probabilities],
-        "Expected share": config.null_probabilities,
-    }
+st.html(
+    """
+<style>
+  .stMainBlockContainer {max-width: 1040px; padding-top: 4.75rem; padding-bottom: 4rem;}
+  h1 {max-width: 820px; letter-spacing: -.035em; line-height: 1.08 !important;}
+  h2 {letter-spacing: -.02em; padding-top: .4rem !important;}
+  p, li {line-height: 1.7;}
+  .lesson-eyebrow {font-size: .76rem; font-weight: 700; letter-spacing: .12em;
+    color: #526674; margin: 0 0 1rem; text-transform: uppercase;}
+  .lesson-lead {font-size: 1.2rem; line-height: 1.7; max-width: 820px; margin-bottom: 1rem;}
+  .lesson-nav {display: flex; flex-wrap: wrap; gap: .55rem 1.2rem;
+    padding: .8rem 0 1.8rem; font-size: .9rem;}
+  .lesson-nav a {color: #136F83; text-decoration: none; border-bottom: 1px solid #C6D9DE;}
+  .lesson-nav a:focus-visible {outline: 3px solid #B55915; outline-offset: 5px;}
+  .lesson-note {border-left: 3px solid #167D9A; padding: .3rem 0 .3rem 1rem;
+    margin: 1rem 0 1.5rem; color: #304A59;}
+  .case-grid {display: grid; grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 8px; padding: 0 !important; margin: 1rem 0 !important; list-style: none;}
+  .case-grid li {list-style: none; border: 1px solid #CDD9DF; border-radius: 8px;
+    background: #F0F5F6; padding: .35rem .15rem .45rem; text-align: center; color: #324C59;}
+  .case-grid .case-a {background: #FFF0DD; color: #85420D; border-color: #C77732;}
+  .case-id {display: block; font-size: .68rem; line-height: 1.5; color: #586C78;}
+  .case-court {display: block; font-size: 1.18rem; font-weight: 700; line-height: 1.6;}
+  .court-grid {display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 7px; padding: 0 !important; margin: 1rem 0 !important; list-style: none;}
+  .court-grid li {list-style: none; text-align: center; border: 1px solid #9DB6C0;
+    border-radius: 6px; background: #F0F5F6; padding: .45rem 0; font-weight: 700;}
+  .court-grid span {display: block; font-size: .7rem; font-weight: 400; color: #4F6672;}
+  .lesson-result {border-top: 2px solid #C06C22; border-bottom: 1px solid #DFC9B3;
+    background: #FFF7EC; padding: 1.4rem 1.5rem; margin: .7rem 0 1rem;}
+  .lesson-result .result-number {display: block; font-size: clamp(1.8rem, 5vw, 2.8rem);
+    letter-spacing: -.03em; font-weight: 750; color: #85420D; line-height: 1.2;}
+  .lesson-result p {margin: .65rem 0 0;}
+  .lesson-equation {font-size: 1.35rem; font-weight: 650; color: #85420D; padding: .3rem 0;}
+  @media (max-width: 650px) {
+    .stMainBlockContainer {padding-top: 4.75rem; padding-left: 1rem; padding-right: 1rem;}
+    .case-grid {grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px;}
+    .court-grid {grid-template-columns: repeat(6, minmax(0, 1fr));}
+    .lesson-lead {font-size: 1.07rem;}
+    .lesson-result {padding: 1.15rem;}
+  }
+</style>
+"""
 )
-summary["Observed share"] = summary["Observed"] / n_cases
-summary["Difference (pp)"] = 100 * (summary["Observed share"] - summary["Expected share"])
-summary["Observed / expected"] = summary["Observed"] / summary["Expected"]
-largest = summary.loc[summary["Difference (pp)"].abs().idxmax()]
-gap = largest["Observed"] - largest["Expected"]
-direction = "more" if gap >= 0 else "fewer"
 
-st.caption("A FICTIONAL CASE STUDY · 100% SYNTHETIC DATA")
-st.title("Court Assignment Audit")
+records = lesson_records()
+observed_view = build_binomial_view(target_result())
+exact_ten = exact_count_probability(OBSERVED_A)
+tail_ten = exact_tail_probability(OBSERVED_A)
+
+st.html('<p class="lesson-eyebrow">Una historia para aprender estadística · Datos inventados</p>')
+st.title("¿Diez veces en el mismo juzgado?")
+st.html(
+    '<p class="lesson-lead">Una empresa ficticia tiene <strong>60 expedientes</strong>. '
+    'Diez fueron asignados al <strong>juzgado A</strong>. Si había doce juzgados con '
+    'las mismas chances, ¿qué tan común sería un resultado así?</p>'
+)
+st.caption(
+    "Construimos este caso para aprender: no proviene de una empresa ni de expedientes reales. "
+    "Elegimos estos números para la lección; no los obtuvimos de una muestra aleatoria."
+)
+st.html(
+    '<nav class="lesson-nav" aria-label="Recorrido de la lección">'
+    '<a href="#el-caso">El caso</a><a href="#la-regla">La regla</a>'
+    '<a href="#repetir">Repetir</a><a href="#calcular">Calcular</a>'
+    '<a href="#concluir">Concluir</a><a href="#probar">Probá vos</a></nav>'
+)
+
+st.header("1. Empecemos por los expedientes", anchor="el-caso")
 st.write(
-    "A fictional registry assigns each new case independently to one of four courts. "
-    "The stated chances are 40% for Court A, 30% for Court B, 20% for Court C and 10% for Court D."
+    "Cada ficha es un expediente de la **Empresa Ejemplo**, una empresa inventada. "
+    "La letra indica el juzgado que le tocó. Fijate en las diez fichas del juzgado A."
+)
+case_cards = "".join(
+    f'<li class="{"case-a" if record["court"] == "A" else "case-other"}" '
+    f'aria-label="Expediente {index:02d}, juzgado {record["court"]}">'
+    f'<span class="case-id">{index:02d}</span>'
+    f'<span class="case-court">{record["court"]}</span></li>'
+    for index, record in enumerate(records, start=1)
+)
+st.html(f'<ol class="case-grid" aria-label="Los 60 expedientes ficticios">{case_cards}</ol>')
+st.caption(
+    "10 expedientes en A · 50 en los demás juzgados · Cada expediente se cuenta una sola vez."
+)
+st.html(
+    '<p class="lesson-note">Para esta lección, fijamos de antemano una sola pregunta: '
+    '<strong>¿el juzgado A recibió un número inusualmente alto de expedientes?</strong> '
+    'No elegimos el juzgado que más se destaca después de mirar los resultados.</p>'
 )
 
-overview, methodology, exports = st.tabs(["Analysis", "How to read this", "Data & run log"])
+st.header("2. Acordemos la regla del reparto", anchor="la-regla")
+st.write(
+    "Imaginá esta regla: para cada expediente se sortea uno de los **12 juzgados**, "
+    "todos con la misma chance. En el siguiente sorteo vuelven a participar los doce."
+)
+court_tiles = "".join(
+    f'<li aria-label="Juzgado {court}, probabilidad uno en doce">'
+    f'{court}<span>1 de 12</span></li>'
+    for court in "ABCDEFGHIJKL"
+)
+st.html(f'<ul class="court-grid" aria-label="Doce juzgados equiprobables">{court_tiles}</ul>')
+st.write(
+    "Si sólo miramos A, cada sorteo tiene dos resultados: **sí, fue a A** (1 de 12), "
+    "o **no, fue a otro juzgado** (11 de 12). Lo que sale en un sorteo no cambia "
+    "las chances del siguiente: "
+    "eso es lo que acá llamamos *independencia*."
+)
+st.markdown("En 60 expedientes, el promedio para A sería **60 ÷ 12 = 5**.")
+st.html(
+    '<p class="lesson-note"><strong>Esperar 5 no obliga a obtener 5.</strong> '
+    'Es el promedio de muchos repartos. En uno solo podrían salir 3, 6, 10 u otro número. '
+    'No hay un cupo de cinco expedientes por juzgado.</p>'
+)
 
-with overview:
-    st.subheader("Court A's count under the stated 40% rule")
-    st.write("We chose Court A in advance and asked only about receiving extra assignments.")
-    distribution_column, result_column = st.columns([2.2, 1], gap="large")
-    with distribution_column:
-        st.altair_chart(
-            build_binomial_chart(binomial_view),
-            width="stretch",
-            alt=(
-                "Exact binomial probabilities for each possible Court A count. "
-                "Orange bars mark the observed count or more; a dashed line marks the "
-                "expected count and a solid line marks the observed count."
-            ),
-        )
-        if binomial_view.lower_count == 0 and binomial_view.upper_count == n_cases:
-            st.caption(f"All possible counts from 0 to {n_cases:,} are shown.")
-        else:
-            st.caption(
-                f"Showing counts {binomial_view.lower_count:,} to {binomial_view.upper_count:,}. "
-                "At most 0.0001% of the total probability lies outside this range. "
-                "The reported probability uses the full tail, even outside the plotted range."
-            )
-        if math.isclose(target.observed_count, target.expected_count, rel_tol=0, abs_tol=1e-10):
-            st.caption(
-                "Observed matches expected. Both markers share the same position: "
-                "the dashed expected line sits over the solid observed line."
-            )
-        tallest_bar = max(point.pmf for point in binomial_view.points)
-        tallest_tail_bar = max(
-            (point.pmf for point in binomial_view.points if point.in_tail), default=0
-        )
-        if tallest_tail_bar < tallest_bar * 0.003:
-            st.caption(
-                "The orange tail is too small to see clearly on this linear scale. "
-                "Its probability is still calculated over every count through n."
-            )
-    with result_column:
-        with st.container(border=True):
-            st.caption("COURT A: OBSERVED / EXPECTED")
-            st.markdown(f"### {target.observed_count:,} / {count_text(target.expected_count)}")
-            st.caption(f"Share difference: {target.lift_pp:+.1f} percentage points")
-            st.divider()
-            st.caption(f"PROBABILITY OF {target.observed_count:,} OR MORE")
-            probability_display = binomial_view.probability_label.split(" (", 1)[0]
-            probability_display = probability_display.removesuffix(" probability")
-            st.markdown(f"### {probability_display}")
-            if target.p_value_underflow:
-                st.caption("Positive probability, displayed using its logarithm.")
-            st.write(
-                f"Under the stated rule, this is the probability of **{target.observed_count:,} "
-                f"or more** assignments to Court A in another **{n_cases:,}-case allocation**."
-            )
-            if binomial_view.frequency_label:
-                st.write(
-                    f"{binomial_view.frequency_label.capitalize()} would give Court A "
-                    "at least this many cases."
-                )
-            if n_cases == 1:
-                st.caption("One assignment cannot establish a stable allocation pattern.")
-            st.markdown(f"**{court_a_reading.headline}**")
+st.header("3. Repitamos el reparto", anchor="repetir")
+st.write(
+    "Ahora dejemos el caso original a un lado por un momento. En cada repetición vamos a "
+    "sortear **60 expedientes nuevos** con esa misma regla y contar cuántos terminan en A. "
+    "Después vamos a repetir el experimento **1.000 veces**."
+)
+st.markdown("**Un reparto completo → 60 sorteos → un conteo para A.**")
+if "simulation_batch_number" not in st.session_state:
+    st.session_state.simulation_batch_number = 0
+if st.button("Simulá 1.000 repartos", type="primary", key="simulate"):
+    st.session_state.simulation_batch_number += 1
+
+batch_number = st.session_state.simulation_batch_number
+batch = classroom_simulation(batch_number) if batch_number else None
+if batch is None:
     st.caption(
-        "Entirely synthetic data. This is not the probability of misconduct. "
-        "Neither a common nor an unusual result proves whether the process was random or fair."
+        "Antes de apretar el botón, pensá: ¿en cuántos de esos 1.000 repartos A recibirá "
+        "10 expedientes o más? El caso original seguirá igual."
     )
-    with st.expander("Show the Court A calculation"):
-        st.write(court_a_reading.explanation)
-        st.caption(binomial_view.range_note)
-        st.write(
-            "Every bar is the exact binomial probability of one integer count, not a normal "
-            "approximation. Orange marks counts at least as large as observed, including ties. "
-            "The reported tail sums over the complete support from the observed count to n; "
-            "cropping the chart does not change or renormalize it."
-        )
-        st.latex(
-            r"X_A \sim \operatorname{Binomial}(n, 0.40), \qquad "
-            r"p = P(X_A \geq k)"
-        )
-        st.metric(
-            "Exact enrichment p-value",
-            p_text(
-                target.p_value, underflow=target.p_value_underflow, log_value=target.log_p_value
-            ),
-        )
-        st.write(f"Natural log of the tail probability: {target.log_p_value:.12g}.")
-        if target.p_value_underflow:
-            st.write(
-                "The probability is positive but too small for an ordinary floating-point "
-                "number. The displayed power of ten uses the log tail; it is not zero."
-            )
-        st.write(
-            "Displayed probabilities are rounded. Expected count means an average over "
-            "repetitions, not a quota. The 5% reading guide applies only to this preselected "
-            "upper-tail question; it does not test for a shortfall."
-        )
-    st.divider()
-    st.subheader("The whole allocation: a separate model check")
-    with st.container(border=True):
-        st.caption("DO THE FOUR COURTS TOGETHER FIT THE STATED RULE?")
-        st.markdown(f"### {reading.headline}")
-        st.write(reading.explanation)
-        st.caption(
-            "This global check and Court A use the same allocation. They answer different "
-            "questions and need not agree."
-        )
-
-    if gap == 0:
-        st.subheader("All four counts match the model averages")
-        st.write(
-            f"Across **{n_cases:,} assignments**, every observed count equals its expectation."
-        )
-    else:
-        st.subheader(f"The largest count gap is in {largest['Court']}")
-        st.write(
-            f"Across **{n_cases:,} assignments**, **{largest['Court']}** received "
-            f"**{largest['Observed']:,} assignments** versus "
-            f"**{count_text(largest['Expected'])} expected** on average. That is "
-            f"**{count_text(abs(gap))} {direction} assignments** "
-            f"and a **{abs(largest['Difference (pp)']):.1f} percentage-point** gap."
-        )
-    st.caption("This is a descriptive comparison of counts, not a separate test of that court.")
-    chart_data = summary.melt(
-        id_vars="Court",
-        value_vars=["Expected", "Observed"],
-        var_name="Series",
-        value_name="Assignments",
-    )
-    chart = (
-        alt.Chart(chart_data)
-        .mark_bar(cornerRadiusEnd=3)
-        .encode(
-            y=alt.Y("Court:N", sort=list(COURTS), title=None),
-            yOffset=alt.YOffset("Series:N", sort=["Expected", "Observed"]),
-            x=alt.X("Assignments:Q", title="Number of assignments", scale=alt.Scale(zero=True)),
-            color=alt.Color(
-                "Series:N",
-                scale=alt.Scale(domain=["Expected", "Observed"], range=["#94A3B8", "#167D9A"]),
-                legend=alt.Legend(orient="top", title=None),
-            ),
-            tooltip=["Court:N", "Series:N", alt.Tooltip("Assignments:Q", format=",.1f")],
-        )
-        .properties(height=240)
+else:
+    st.markdown(
+        f"En el **lote {batch.batch_number}**, **{batch.exceedances} de los 1.000 repartos** "
+        f"dieron **10 expedientes o más** a A: **{percent(batch.frequency)}** de este lote."
     )
     st.altair_chart(
-        chart,
+        build_simulation_chart(batch.target_counts),
         width="stretch",
-        alt="Four pairs of horizontal bars compare observed assignments with expected averages.",
+        alt=(
+            "Histograma de 1.000 repartos simulados de 60 expedientes. Cada barra indica "
+            "cuántos repartos dieron ese conteo al juzgado A. Se destacan los conteos de 10 o más."
+        ),
     )
     st.caption(
-        "Grey is the model's average; teal is this run. Expected counts are averages over "
-        "many repetitions, not quotas that each run must meet."
-    )
-    with st.expander("See the counts and share differences"):
-        st.dataframe(summary, hide_index=True, width="stretch")
-        st.write(
-            f"Total variation distance: {global_result.total_variation:.1%}. "
-            "This is half the sum of absolute share differences, a measure of effect size."
-        )
-
-    with st.expander("Compare twelve complete random allocations"):
-        st.subheader("The same rule can produce different allocations")
-        st.write(
-            "Compare this run with twelve examples generated by the stated rule. "
-            "Each coloured segment is one court's share of the same total number of cases."
-        )
-        reference = reference_allocations(config.n_cases, config.null_probabilities)
-        labels = ["This run", *[f"Example {i + 1:02d}" for i in range(len(reference))]]
-        vectors = [[dataset.counts[court] for court in COURTS], *reference.tolist()]
-        comparison_data = pd.DataFrame(
-            [
-                {
-                    "Allocation": label,
-                    "Court": court,
-                    "Court order": index,
-                    "Assignments": counts[index],
-                    "Share": counts[index] / n_cases,
-                }
-                for label, counts in zip(labels, vectors, strict=True)
-                for index, court in enumerate(COURTS)
-            ]
-        )
-        comparison = (
-            alt.Chart(comparison_data)
-            .mark_bar()
-            .encode(
-                y=alt.Y("Allocation:N", sort=labels, title=None, axis=alt.Axis(labelOverlap=False)),
-                x=alt.X(
-                    "Share:Q",
-                    stack="zero",
-                    title="Share of assignments",
-                    scale=alt.Scale(domain=[0, 1]),
-                    axis=alt.Axis(format=".0%"),
-                ),
-                color=alt.Color(
-                    "Court:N",
-                    sort=list(COURTS),
-                    scale=alt.Scale(
-                        domain=list(COURTS), range=["#167D9A", "#8262AB", "#C58C31", "#A6B6C9"]
-                    ),
-                    legend=alt.Legend(orient="top", title=None, columns=2),
-                ),
-                order=alt.Order("Court order:Q"),
-                stroke=alt.condition(
-                    alt.datum.Allocation == "This run",
-                    alt.value("#132A43"),
-                    alt.value("transparent"),
-                ),
-                strokeWidth=alt.value(1),
-                tooltip=[
-                    "Allocation:N",
-                    "Court:N",
-                    "Assignments:Q",
-                    alt.Tooltip("Share:Q", format=".1%"),
-                ],
-            )
-            .properties(height=440)
-        )
-        st.altair_chart(
-            comparison,
-            width="stretch",
-            alt=(
-                "One highlighted stacked bar shows this run; twelve stacked bars show complete "
-                "random allocations under the same expected probabilities and sample size."
-            ),
-        )
-        st.caption(
-            f"Every row totals {n_cases:,} cases. These fixed examples illustrate variation; "
-            f"the global check uses all {MC_SIMULATIONS:,} simulated allocations."
-        )
-
-    with st.expander("Show the global test details"):
-        st.write(
-            f"**{global_result.exceedances:,} of {global_result.simulations:,}** simulated "
-            "allocations had an overall discrepancy at least as large as this run, including ties."
-        )
-        if global_result.exceedances == 0:
-            st.write(
-                "Zero exceedances in a finite simulation does not mean the pattern is impossible."
-            )
-        st.metric("Global Monte Carlo p-value", p_text(global_result.p_value))
-        st.write(
-            "This p-value is a conditional tail probability under the stated model, "
-            "not the probability of fraud or of the model being true."
-        )
-        st.latex(r"p_{MC}=\frac{b+1}{B+1}")
-        st.write(
-            f"Pearson discrepancy: {global_result.statistic:.4f}. "
-            f"Smallest reportable Monte Carlo p-value: {global_result.min_attainable_p_value:.2e}."
-        )
-        se_label = (
-            "boundary estimate; use the interval"
-            if global_result.exceedances in (0, global_result.simulations)
-            else f"{global_result.mc_standard_error:.2e}"
-        )
-        st.write(
-            f"Approximate Monte Carlo standard error: {se_label}. "
-            f"Exact 95% Monte Carlo uncertainty interval for the null tail probability: "
-            f"[{global_result.mc_tail_ci_low:.2e}, {global_result.mc_tail_ci_high:.2e}]."
-        )
-        st.caption(
-            "The SE uses b/B and may be zero at a boundary. The interval describes Monte Carlo "
-            "uncertainty in the p-value estimate, not the probability that the model is true "
-            "or uncertainty about wrongdoing or the assignment probabilities."
-        )
-        st.write(
-            "**How the headline is chosen:** 5% is a reading guide, not a boundary between fair "
-            "and unfair. We call a pattern unusual only when the corrected p-value and the "
-            "interval's upper limit are below 5%. When the whole interval is above 5%, we report "
-            "no clear departure. Otherwise the headline stays neutral because simulation "
-            "uncertainty affects the comparison. One case receives a small-sample reminder."
-        )
-        st.caption(
-            f"Comparison examples are the first 12 joint multinomial draws from seed {MC_SEED}, "
-            "using this run's sample size and the stated probabilities. Their selection is fixed."
-        )
-
-    with st.expander("Explore all four courts — adjusted comparisons"):
-        st.write(
-            "This is a different question: which courts show an excess when all four are "
-            "examined? Holm adjusts the complete family of four one-sided tests. "
-            "These results need not agree with the global check or the planned Court A check."
-        )
-        st.dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "Court": court,
-                        "Difference (pp)": result.lift_pp,
-                        "Holm-adjusted p-value": p_text(
-                            result.adjusted_p_value,
-                            underflow=result.adjusted_p_value_underflow,
-                            log_value=result.adjusted_log_p_value,
-                        ),
-                        "Raw enrichment p-value": p_text(
-                            result.p_value,
-                            underflow=result.p_value_underflow,
-                            log_value=result.log_p_value,
-                        ),
-                    }
-                    for court, result in zip(COURTS, run["exploratory"], strict=True)
-                ]
-            ),
-            hide_index=True,
-            width="stretch",
-        )
-        st.caption(
-            "Holm covers these four courts in one analysis. Repeatedly trying seeds, sample "
-            "sizes or scenarios and retaining interesting results adds selection not covered here."
-        )
-
-with methodology:
-    st.subheader("Three questions, three different readings")
-    st.write(
-        "The first graphic shows the planned Court A question, which looks only for an excess. "
-        "The global check below it assesses the whole four-court allocation. "
-        "The optional exploration checks all four courts "
-        "with a multiple-testing adjustment. These are separate questions, not a combined verdict."
-    )
-    with st.expander("What the model assumes"):
-        st.write(
-            "Every independent case is assigned exactly once to Court A, B, C or D with stated "
-            "probabilities 0.40, 0.30, 0.20 and 0.10. These probabilities are known inputs, "
-            "not estimates from the sample. Eligibility and probabilities do not change."
-        )
-        st.write(
-            "Real eligibility rules, workloads, related cases or changing probabilities could "
-            "require a different model. Judicial outcomes and resolved-case subsets "
-            "are not analyzed."
-        )
-    with st.expander("How the calculations work"):
-        st.markdown(
-            "1. **Global:** compare all counts using Pearson's discrepancy from the specified "
-            "multinomial probabilities.\n"
-            "2. **Calibration:** simulate complete allocations under that model and count "
-            "discrepancies at least as large, including ties. This supports sparse counts without "
-            "a large-sample chi-square approximation.\n"
-            "3. **Planned Court A question:** calculate the exact upper-tail "
-            "binomial probability.\n"
-            "4. **Exploration:** adjust the complete four-court enrichment family with Holm."
-        )
-        st.caption(
-            "A p-value measures compatibility with assumptions; effect size measures the size "
-            "of a difference. No combined significance decision is made from the separate checks."
-        )
-    with st.expander("What you can and cannot conclude"):
-        st.write(
-            "A pattern can be unusual under a model without identifying why it occurred. "
-            "A pattern without a clear departure does not establish that the real process was "
-            "random or fair. These synthetic examples are not legal evidence, and no p-value "
-            "is the probability of fraud, guilt or a hypothesis being true."
-        )
-
-with exports:
-    st.subheader("Reproduce or download this run")
-    st.code(
-        "python -m court_assignment_audit.cli "
-        f"--scenario {scenario} --seed {seed} --n-cases {n_cases} --output-dir artifacts/demo"
+        f"Lote {batch.batch_number} · Semilla {batch.seed} · Se cuentan los 1.000 repartos, "
+        "sin descartar ninguno. Cada clic genera otro lote identificable."
     )
     st.write(
-        "The run log records the mechanism, both seeds, sample size, all results, software "
-        "versions and a SHA-256 checksum of the synthetic CSV. Every row is invented."
+        "Al repetir, la frecuencia puede cambiar. La simulación nos ayuda a ver la variación; "
+        "no modifica los 60 expedientes del ejemplo ni la probabilidad que calcularemos abajo."
     )
-    st.download_button(
-        "Download synthetic assignments",
-        assignments_csv(run),
-        file_name="synthetic_assignments.csv",
-        mime="text/csv",
-    )
-    st.download_button(
-        "Download run log",
-        manifest_json(run),
-        file_name="run_manifest.json",
-        mime="application/json",
-    )
-    st.dataframe(pd.DataFrame(dataset.to_records()).head(25), hide_index=True)
-    st.caption("Preview shows the first 25 generated cases. The CSV contains every generated case.")
-    with st.expander("Inspect generation metadata"):
-        st.json(dataset.metadata)
+    if batch.exceedances == 0:
+        st.caption("No verlo en este lote no significa que sea imposible.")
 
 st.divider()
-st.caption("Court Assignment Audit · Reproducible statistics with entirely synthetic data")
+st.header("4. De la simulación a la probabilidad", anchor="calcular")
+st.write(
+    "La simulación cuenta lo que pasó en un lote. También podemos calcular la probabilidad "
+    "de **cada conteo posible**, desde 0 hasta 60, bajo la regla acordada. "
+    "Esa colección de probabilidades se llama **distribución binomial**."
+)
+st.markdown(
+    f"Primero mirá la barra de **exactamente 10**: su probabilidad es **{percent(exact_ten)}**. "
+    "La altura de cada barra corresponde a un resultado exacto."
+)
+st.altair_chart(
+    build_lesson_distribution(observed_view, mode="breakdown"),
+    width="stretch",
+    alt=(
+        "Distribución binomial para 60 expedientes y probabilidad uno en doce. "
+        "La barra de exactamente 10 está destacada, junto con las de 11 o más. "
+        "Una línea discontinua marca el promedio 5 y otra sólida el conteo observado 10."
+    ),
+)
+st.caption(
+    "Las líneas marcan 5 esperados en promedio y 10 observados. Mostramos la zona donde "
+    "se concentra la probabilidad; todos los cálculos incluyen los conteos hasta 60, "
+    "también los que quedan fuera del gráfico. Las barras conservan sus probabilidades originales."
+)
+st.subheader("La pregunta incluye 10… y también más de 10")
+st.write(
+    "Queríamos saber si A recibió muchos expedientes. Si 10 nos llama la atención, "
+    "11, 12 o más también. Por eso sumamos la barra de 10 y **todas las que están a su derecha**. "
+    "A ese conjunto lo llamamos la *cola* de la distribución."
+)
+st.html(
+    '<p class="lesson-equation">Exactamente 10: 1,57 % → 10 o más: 2,58 %</p>'
+)
+st.write(
+    "Esa probabilidad de **10 o más**, calculada bajo la regla propuesta, "
+    "es el **valor p** de nuestra pregunta sobre un exceso en A."
+)
+
+st.header("5. Volvamos al caso", anchor="concluir")
+st.html(
+    '<div class="lesson-result" role="note" aria-label="Conclusión del ejemplo">'
+    '<span class="result-number">Aproximadamente 26 de cada 1.000</span>'
+    '<p>Si repitiéramos muchos repartos de <strong>60 expedientes</strong> con la regla '
+    'de uno entre doce, alrededor de 26 de cada 1.000 le darían '
+    '<strong>10 o más al juzgado A</strong>.'
+    '</p></div>'
+)
+st.markdown(
+    "En nuestro caso construido, A recibió **10 en lugar de 5 esperados en promedio**: "
+    "el doble. Es un resultado poco común bajo esa regla, aunque **puede ocurrir**. "
+    "Por sí solo, el conteo no explica por qué ocurrió."
+)
+st.write(
+    "El **2,58 % no es la probabilidad de fraude**, ni la probabilidad de que la regla sea "
+    "verdadera o falsa. Y un resultado común tampoco demostraría que un proceso real "
+    "fue aleatorio. Acá estamos aprendiendo con un ejemplo enteramente ficticio."
+)
+
+st.divider()
+st.header("6. Ahora probá vos", anchor="probar")
+st.write(
+    "¿Y si A hubiera recibido otro número de expedientes? Mové el deslizador y mirá "
+    "cómo cambia la probabilidad de obtener **ese número o más**."
+)
+practice_count = st.slider(
+    "Cantidad hipotética de expedientes en A", 0, 15, OBSERVED_A, key="practice_count"
+)
+practice_tail = exact_tail_probability(practice_count)
+st.markdown(
+    f"**{practice_count} o más de 60 → {percent(practice_tail)}**, "
+    "si cada expediente tiene una chance entre doce de ir a A."
+)
+st.caption(
+    "Sólo cambia esta pregunta de práctica. El conjunto original sigue teniendo "
+    "60 expedientes y 10 asignados a A; la simulación anterior también se conserva. "
+    "El deslizador llega a 15, pero cada cola se calcula hasta 60."
+)
+st.altair_chart(
+    build_lesson_distribution(
+        build_binomial_view(target_result(practice_count)), mode="tail", hypothetical=True
+    ),
+    width="stretch",
+    alt=(
+        f"La misma distribución binomial, con la cola desde {practice_count} hasta 60. "
+        f"El umbral {practice_count} es hipotético; el conjunto original conserva 10 casos en A."
+    ),
+)
+if practice_tail < 0.001:
+    st.caption(
+        "La cola es tan chica que sus barras casi no se ven en esta escala. "
+        "La probabilidad sigue incluyendo todos los conteos hasta 60."
+    )
+if practice_count == 0:
+    st.write("Cero o más incluye todos los resultados posibles. Por eso la probabilidad es 100 %.")
+elif practice_count == 5:
+    st.write(
+        "El umbral coincide con el promedio. La probabilidad de 5 o más es **56,72 %**, "
+        "no necesariamente la mitad: estamos contando resultados enteros, incluido el 5."
+    )
+elif practice_count == OBSERVED_A:
+    st.write("Volviste al conteo del ejemplo: 10 o más tiene una probabilidad de **2,58 %**.")
+else:
+    st.write(
+        "Al pedir un conteo más alto, quedan menos resultados en la cola. "
+        "La probabilidad baja, aunque la regla del sorteo sigue siendo la misma."
+    )
+
+st.divider()
+with st.expander("Para seguir: la fórmula y los supuestos"):
+    st.write(
+        "Llamamos X a la cantidad de expedientes que llegan a A en un reparto de 60. "
+        "Usamos una binomial porque hay 60 sorteos independientes, cada uno con dos "
+        "resultados respecto de A, y una probabilidad constante de 1/12."
+    )
+    st.latex(r"X\sim\operatorname{Binomial}(60,\tfrac{1}{12})")
+    st.latex(r"P(X=k)=\binom{60}{k}(\tfrac{1}{12})^k(\tfrac{11}{12})^{60-k}")
+    st.latex(r"P(X\geq10)=\sum_{k=10}^{60}P(X=k)")
+    st.write(
+        f"Con más decimales: exactamente 10 = **{percent(exact_ten, 8)}**; "
+        f"10 o más = **{percent(tail_ten, 8)}**. "
+        "La frecuencia simulada es un conteo del lote, no reemplaza este cálculo exacto."
+    )
+    st.write(
+        "El modelo supone que los doce juzgados son elegibles en cada sorteo, que todos "
+        "tienen la misma chance y que un expediente no condiciona otro. Si hubiera cupos, "
+        "conexidad entre expedientes, competencias distintas o cambios en las reglas, "
+        "haría falta otro modelo. No estamos describiendo un sistema judicial real."
+    )
+
+with st.expander("Datos del ejemplo y cómo repetir la experiencia"):
+    st.write(
+        "El CSV contiene los mismos 60 expedientes construidos que ves arriba. "
+        "El registro JSON distingue el caso original, el lote simulado —si lo corriste— "
+        "y la pregunta hipotética del deslizador. No hay datos reales ni archivos subidos."
+    )
+    st.download_button(
+        "Descargá los 60 expedientes (CSV)",
+        lesson_csv(),
+        file_name="constructed_lesson_assignments.csv",
+        mime="text/csv",
+        key="download_cases",
+    )
+    st.download_button(
+        "Descargá el registro de la experiencia (JSON)",
+        json.dumps(
+            lesson_manifest(batch=batch, practice_threshold=practice_count),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n",
+        file_name="lesson_run_manifest.json",
+        mime="application/json",
+        key="download_manifest",
+    )
+    st.dataframe(
+        pd.DataFrame(records)[["case_id", "court"]].rename(
+            columns={"case_id": "Expediente", "court": "Juzgado"}
+        ),
+        hide_index=True,
+        width="stretch",
+    )
+    st.caption(
+        f"Caso fijo: {N_CASES} expedientes · 12 juzgados · 10 en A. "
+        "Los clics de simulación se conservan mientras esta sesión siga abierta. "
+        "Al recargar la página, la lección vuelve a su inicio."
+    )
+    st.write(
+        "El README en inglés explica cómo ejecutar la lección y reproducir un lote. "
+        "Las notas técnicas incluyen el análisis del reparto completo y las comparaciones "
+        "entre juzgados como extensiones: responden otras preguntas."
+    )
+    st.markdown(
+        "[Código y guía de reproducción](https://github.com/axel2307/court-assignment-audit)"
+        " · [Notas técnicas](https://github.com/axel2307/court-assignment-audit/blob/main/"
+        "docs/methodology.md)"
+    )
+
+st.caption(
+    "Court Assignment Audit · Una lección con datos 100 % ficticios y cálculos reproducibles."
+)

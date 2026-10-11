@@ -1,0 +1,78 @@
+# Court Assignment Audit
+
+A small Streamlit portfolio project for exploring statistical anomalies in a **fully synthetic assignment process**. It combines reproducible simulation, statistical testing, effect sizes, and transparent reporting in one reviewable workflow.
+
+Each synthetic case is independently assigned to one of four generic courts. The app compares observed assignments with an explicitly defined allocation rule. It does not analyze case outcomes, estimate the probability of misconduct, or provide conclusive legal evidence.
+
+## Run the demo
+
+Use Python 3.12-3.13. From the project directory:
+
+```bash
+python -m venv .venv
+# macOS/Linux
+source .venv/bin/activate
+# Windows PowerShell
+# .venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m pip install --no-deps -e .
+streamlit run app.py
+```
+
+In the app, compare the null and illustrative anomaly scenarios. Inspect the observed-versus-expected chart, effect sizes, primary global test, and planned secondary Court A test. The exploratory table reports all four courts together with a multiple-testing adjustment.
+
+To generate a reproducible synthetic example from the command line:
+
+```bash
+python -m court_assignment_audit.cli --scenario null --seed 20261011 --output-dir artifacts/demo
+```
+
+After installing dependencies, run the test suite with external Python socket connections blocked, then lint the project. Loopback is allowed for Windows' internal asynchronous event-loop communication; the tests use no external services.
+
+```bash
+python scripts/run_checks.py
+ruff check .
+```
+
+## The two scenarios
+
+| Court | Defined null probability | Illustrative anomaly probability |
+| --- | ---: | ---: |
+| Court A | 40% | 58% |
+| Court B | 30% | 21% |
+| Court C | 20% | 14% |
+| Court D | 10% | 7% |
+
+The null scenario samples from the defined allocation rule. The anomaly scenario deliberately increases Court A's assignment probability. **Both are invented simulations**, and both are tested against the same null probabilities. Their realized counts remain random: the generator does not force a particular count or p-value.
+
+The generator seed reproduces the assignments. A separate Monte Carlo seed controls calibration of the global test. Keep the seeds, sample size, scenario, simulation count, and software versions with a result when reproducing it.
+
+## What the results mean
+
+- **Primary global comparison:** a Pearson discrepancy statistic compares the full count vector with the known allocation probabilities. Its p-value is calibrated by simulating independent multinomial samples under that rule, including when expected counts are small.
+- **Planned secondary Court A test:** an exact, one-sided binomial test asks whether Court A received unusually many assignments under its defined 40% probability. The target and direction are selected before generating or inspecting the data.
+- **Exploratory courts:** four one-sided enrichment tests are shown together with Holm-adjusted p-values. Use this table when investigating which courts stand out after looking at the assignments.
+- **Magnitude:** observed shares, differences from expected shares, and observed-to-expected ratios describe the size and direction of deviations. Total variation summarizes the overall share discrepancy. A p-value is not an effect size.
+
+A small p-value indicates incompatibility with the stated null model under the test's assumptions. It is **not** the probability that the null is true, that an assignment was manipulated, or that any person is responsible. A large p-value does not establish that the process is unbiased. Null simulations can produce small p-values, and anomaly simulations can fail to produce them.
+
+See [the methodology](docs/methodology.md) for the formulas, Monte Carlo uncertainty, multiple-testing scope, and assumptions.
+
+## Scope and limitations
+
+This is a teaching and portfolio application built entirely from generated records and generic labels. It has no data upload flow: every analysis starts with the explicitly defined synthetic mechanism.
+
+The model assumes independent assignments, a fixed set of eligible courts, constant known probabilities, and complete assignment records. Real allocation systems may have eligibility restrictions, changing workloads, rotations, or dependent assignments that require a different model. Resolved-case outcomes are a different population and cannot substitute for assignment counts in this analysis.
+
+The app evaluates one specified model; it does not establish causes. Trying many seeds, sample sizes, scenarios, or targets and reporting only a favorable result creates selection bias beyond the adjustment shown in the app.
+
+## Project structure
+
+```text
+app.py                       Streamlit interface
+src/court_assignment_audit/  Synthetic generation and statistical analysis
+tests/                       Deterministic, offline statistical and input checks
+docs/methodology.md          Model, interpretation, and limitations
+```
+
+The project intentionally keeps the analysis local and focused: no accounts, database, external model API, or production deployment is required.

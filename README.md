@@ -15,9 +15,10 @@ source .venv/bin/activate
 # Windows PowerShell
 # .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m pip install --no-deps -e .
-streamlit run app.py
+streamlit run app.py --server.address 127.0.0.1 --server.port 3062
 ```
+
+The requirements file installs the local analysis package as well as the pinned dependencies. The command above keeps the local demo at `http://127.0.0.1:3062`; the shared Streamlit configuration leaves network binding to the hosting environment.
 
 In the app, compare the null and illustrative anomaly scenarios. Inspect the observed-versus-expected chart, effect sizes, primary global test, and planned secondary Court A test. The exploratory table reports all four courts together with a multiple-testing adjustment.
 
@@ -33,6 +34,12 @@ After installing dependencies, run the test suite with external Python socket co
 python scripts/run_checks.py
 ruff check .
 ```
+
+## Deploy on Streamlit Community Cloud
+
+Select the repository, the `main` branch, and `app.py` as the entrypoint. Choose Python **3.12** in Advanced settings, matching a tested CI runtime. No secrets or external data connections are needed. Community Cloud installs `requirements.txt`, including the local package needed by the app and its exported software-version metadata.
+
+See the official [deployment guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy) and [dependency guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-dependencies).
 
 ## The two scenarios
 

@@ -10,9 +10,9 @@ Each synthetic case is independently assigned to one of four generic courts. The
 
 The fictional registry gives Court A a 40% chance of receiving each new case, Court B 30%, Court C 20%, and Court D 10%. Random draws will not meet those shares exactly, so the question is whether the observed differences are unusual under that rule.
 
-The app leads with a plain-language summary of the whole allocation. Read the observed-versus-expected counts next, then compare this run with twelve complete simulated allocations of the same size. The largest share gap describes the size of a difference; it is not a separate test of the court with that gap.
+The app starts with one question chosen in advance: **did Court A receive unusually many assignments for its 40% chance?** Its observed count and expected average lead into an exact binomial chart. Each bar is the probability of one possible Court A count; the coloured bars mark counts at least as large as the observed count. The total probability of such counts explains the one-sided p-value.
 
-The planned Court A question appears separately below. P-values, the four-court Holm exploration, and calculation details are in expandable sections. **How to read this** explains the assumptions; **Data & run log** preserves the synthetic CSV and reproducibility metadata.
+The whole-allocation comparison follows separately and remains the primary model check. Compare counts across all four courts, or expand twelve complete simulated allocations for extra context. Technical details and the four-court Holm exploration are expandable. **How to read this** explains the assumptions; **Data & run log** preserves the synthetic CSV and reproducibility metadata. This teaching order changes neither the tests nor their roles.
 
 ## Run the demo
 
@@ -68,13 +68,15 @@ The generator seed reproduces the assignments. A separate Monte Carlo seed contr
 
 | Question | Reading |
 | --- | --- |
-| Does the whole allocation fit the stated rule? | The primary global comparison uses Pearson's discrepancy, calibrated with complete multinomial simulations under the known probabilities. |
 | Did Court A receive unusually many cases? | A planned, exact upper-tail binomial test checks Court A against its 40% probability. The court and direction are chosen in advance; a shortfall is not tested. |
+| Does the whole allocation fit the stated rule? | The primary global comparison uses Pearson's discrepancy, calibrated with complete multinomial simulations under the known probabilities. |
 | Which courts show an excess when all four are examined? | The optional exploration applies Holm adjustment to the complete family of four enrichment tests. It is a separate question and need not agree with either result above. |
 
-The global headline uses **5% as an explicit reading guide**. It says the allocation is unusual only when the corrected Monte Carlo p-value and the upper end of its 95% simulation interval are both below 5%. It says there is no clear departure only when the interval's lower end is above 5%. An interval that touches or crosses 5% receives a neutral reading because simulation uncertainty affects that comparison. A single assignment instead receives a reminder that it cannot establish a stable allocation pattern. The planned Court A reading uses its exact upper-tail p-value below 5%, without a Monte Carlo interval.
+The Court A chart uses discrete binomial probabilities, not a fitted bell curve. Observed and expected markers locate this run against the model. The reported tail probability uses the full binomial distribution, summing from the observed count through the sample size even when the chart displays a narrower range; visible bars are never rescaled to total one. When readable, an accompanying frequency such as "40 in 100" or "1 in X" describes complete allocations of the same number of cases under the stated rule that would give Court A at least the observed count. It does not describe the probability of fraud. Very small probabilities retain scientific or logarithmic notation rather than being rounded to zero.
 
-Observed shares, percentage-point gaps, and observed-to-expected ratios show the size and direction of differences. Total variation summarizes the overall share discrepancy. The twelve visual examples use the same sample size and null probabilities, with fixed seed `271828`; they are the first joint multinomial draws, not examples selected to resemble or contrast with the observed data. They provide context, not an additional test or confidence band.
+The planned Court A reading uses its exact upper-tail p-value below **5%**, without a Monte Carlo interval. The separate global headline uses the same reference but accounts for simulation uncertainty: it says unusual only when the corrected p-value and the 95% interval's upper endpoint are both below 5%, and no clear departure only when the lower endpoint is above 5%. An interval touching or crossing 5% receives a neutral reading. With one assignment, the global headline instead notes that a stable allocation pattern cannot be established.
+
+Observed shares, percentage-point gaps, and observed-to-expected ratios show the size and direction of differences. Total variation summarizes the overall share discrepancy. The optional twelve examples use the same sample size and null probabilities, with fixed seed `271828`; they are the first joint multinomial draws, not examples selected to resemble or contrast with the observed data. They provide context, not an additional test or confidence band.
 
 A small p-value indicates incompatibility with the stated null model under the test's assumptions. It is **not** the probability that the null is true, that an assignment was manipulated, or that any person is responsible. A large p-value does not establish that the process is unbiased. Null simulations can produce small p-values, and anomaly simulations can fail to produce them.
 

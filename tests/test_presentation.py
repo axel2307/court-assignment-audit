@@ -150,6 +150,14 @@ def test_target_positive_lift_needs_tail_strictly_below_five_percent():
     assert target_reading(exact_target_test([5, 5], [0.4, 0.6])).status == "no_clear_excess"
 
 
+def test_target_equality_reading_tolerates_only_expected_count_roundoff():
+    result = exact_target_test([2, 1, 1, 1], [0.4, 0.3, 0.2, 0.1])
+    assert target_reading(result).headline == "The preselected court matches the expected count"
+    assert target_reading(replace(result, expected_count=2.01)).headline == (
+        "This check looks for extra assignments, not a shortfall"
+    )
+
+
 def test_target_underflowed_positive_tail_still_has_directional_reading():
     result = exact_target_test([57_795, 42_205], [0.4, 0.6])
     assert result.p_value_underflow

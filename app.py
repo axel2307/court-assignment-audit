@@ -6,6 +6,8 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+from court_assignment_audit.binomial_view import build_binomial_view
+from court_assignment_audit.charts import build_binomial_chart
 from court_assignment_audit.presentation import (
     global_reading,
     reference_allocations,
@@ -60,6 +62,7 @@ run = simulate(config.n_cases, config.seed, config.scenario)
 dataset, global_result, target = run["dataset"], run["global"], run["target"]
 reading = global_reading(global_result, config.n_cases)
 court_a_reading = target_reading(target)
+binomial_view = build_binomial_view(target)
 
 summary = pd.DataFrame(
     {
@@ -86,13 +89,108 @@ st.write(
 overview, methodology, exports = st.tabs(["Analysis", "How to read this", "Data & run log"])
 
 with overview:
+    st.subheader("Court A's count under the stated 40% rule")
+    st.write("We chose Court A in advance and asked only about receiving extra assignments.")
+    distribution_column, result_column = st.columns([2.2, 1], gap="large")
+    with distribution_column:
+        st.altair_chart(
+            build_binomial_chart(binomial_view),
+            width="stretch",
+            alt=(
+                "Exact binomial probabilities for each possible Court A count. "
+                "Orange bars mark the observed count or more; a dashed line marks the "
+                "expected count and a solid line marks the observed count."
+            ),
+        )
+        if binomial_view.lower_count == 0 and binomial_view.upper_count == n_cases:
+            st.caption(f"All possible counts from 0 to {n_cases:,} are shown.")
+        else:
+            st.caption(
+                f"Showing counts {binomial_view.lower_count:,} to {binomial_view.upper_count:,}. "
+                "At most 0.0001% of the total probability lies outside this range. "
+                "The reported probability uses the full tail, even outside the plotted range."
+            )
+        if math.isclose(target.observed_count, target.expected_count, rel_tol=0, abs_tol=1e-10):
+            st.caption(
+                "Observed matches expected. Both markers share the same position: "
+                "the dashed expected line sits over the solid observed line."
+            )
+        tallest_bar = max(point.pmf for point in binomial_view.points)
+        tallest_tail_bar = max(
+            (point.pmf for point in binomial_view.points if point.in_tail), default=0
+        )
+        if tallest_tail_bar < tallest_bar * 0.003:
+            st.caption(
+                "The orange tail is too small to see clearly on this linear scale. "
+                "Its probability is still calculated over every count through n."
+            )
+    with result_column:
+        with st.container(border=True):
+            st.caption("COURT A: OBSERVED / EXPECTED")
+            st.markdown(f"### {target.observed_count:,} / {count_text(target.expected_count)}")
+            st.caption(f"Share difference: {target.lift_pp:+.1f} percentage points")
+            st.divider()
+            st.caption(f"PROBABILITY OF {target.observed_count:,} OR MORE")
+            probability_display = binomial_view.probability_label.split(" (", 1)[0]
+            probability_display = probability_display.removesuffix(" probability")
+            st.markdown(f"### {probability_display}")
+            if target.p_value_underflow:
+                st.caption("Positive probability, displayed using its logarithm.")
+            st.write(
+                f"Under the stated rule, this is the probability of **{target.observed_count:,} "
+                f"or more** assignments to Court A in another **{n_cases:,}-case allocation**."
+            )
+            if binomial_view.frequency_label:
+                st.write(
+                    f"{binomial_view.frequency_label.capitalize()} would give Court A "
+                    "at least this many cases."
+                )
+            if n_cases == 1:
+                st.caption("One assignment cannot establish a stable allocation pattern.")
+            st.markdown(f"**{court_a_reading.headline}**")
+    st.caption(
+        "Entirely synthetic data. This is not the probability of misconduct. "
+        "Neither a common nor an unusual result proves whether the process was random or fair."
+    )
+    with st.expander("Show the Court A calculation"):
+        st.write(court_a_reading.explanation)
+        st.caption(binomial_view.range_note)
+        st.write(
+            "Every bar is the exact binomial probability of one integer count, not a normal "
+            "approximation. Orange marks counts at least as large as observed, including ties. "
+            "The reported tail sums over the complete support from the observed count to n; "
+            "cropping the chart does not change or renormalize it."
+        )
+        st.latex(
+            r"X_A \sim \operatorname{Binomial}(n, 0.40), \qquad "
+            r"p = P(X_A \geq k)"
+        )
+        st.metric(
+            "Exact enrichment p-value",
+            p_text(
+                target.p_value, underflow=target.p_value_underflow, log_value=target.log_p_value
+            ),
+        )
+        st.write(f"Natural log of the tail probability: {target.log_p_value:.12g}.")
+        if target.p_value_underflow:
+            st.write(
+                "The probability is positive but too small for an ordinary floating-point "
+                "number. The displayed power of ten uses the log tail; it is not zero."
+            )
+        st.write(
+            "Displayed probabilities are rounded. Expected count means an average over "
+            "repetitions, not a quota. The 5% reading guide applies only to this preselected "
+            "upper-tail question; it does not test for a shortfall."
+        )
+    st.divider()
+    st.subheader("The whole allocation: a separate model check")
     with st.container(border=True):
-        st.caption("THE MAIN QUESTION · DOES THE WHOLE ALLOCATION FIT THE STATED RULE?")
+        st.caption("DO THE FOUR COURTS TOGETHER FIT THE STATED RULE?")
         st.markdown(f"### {reading.headline}")
         st.write(reading.explanation)
         st.caption(
-            "Synthetic example. No clear departure does not prove randomness or fairness; "
-            "an unusual result does not establish misconduct."
+            "This global check and Court A use the same allocation. They answer different "
+            "questions and need not agree."
         )
 
     if gap == 0:
@@ -148,73 +246,76 @@ with overview:
             "This is half the sum of absolute share differences, a measure of effect size."
         )
 
-    st.subheader("The same rule can produce different allocations")
-    st.write(
-        "Compare this run with twelve examples generated by the stated rule. "
-        "Each coloured segment is one court's share of the same total number of cases."
-    )
-    reference = reference_allocations(config.n_cases, config.null_probabilities)
-    labels = ["This run", *[f"Example {i + 1:02d}" for i in range(len(reference))]]
-    vectors = [[dataset.counts[court] for court in COURTS], *reference.tolist()]
-    comparison_data = pd.DataFrame(
-        [
-            {
-                "Allocation": label,
-                "Court": court,
-                "Court order": index,
-                "Assignments": counts[index],
-                "Share": counts[index] / n_cases,
-            }
-            for label, counts in zip(labels, vectors, strict=True)
-            for index, court in enumerate(COURTS)
-        ]
-    )
-    comparison = (
-        alt.Chart(comparison_data)
-        .mark_bar()
-        .encode(
-            y=alt.Y("Allocation:N", sort=labels, title=None, axis=alt.Axis(labelOverlap=False)),
-            x=alt.X(
-                "Share:Q",
-                stack="zero",
-                title="Share of assignments",
-                scale=alt.Scale(domain=[0, 1]),
-                axis=alt.Axis(format=".0%"),
-            ),
-            color=alt.Color(
-                "Court:N",
-                sort=list(COURTS),
-                scale=alt.Scale(
-                    domain=list(COURTS), range=["#167D9A", "#8262AB", "#C58C31", "#A6B6C9"]
-                ),
-                legend=alt.Legend(orient="top", title=None, columns=2),
-            ),
-            order=alt.Order("Court order:Q"),
-            stroke=alt.condition(
-                alt.datum.Allocation == "This run", alt.value("#132A43"), alt.value("transparent")
-            ),
-            strokeWidth=alt.value(1),
-            tooltip=[
-                "Allocation:N",
-                "Court:N",
-                "Assignments:Q",
-                alt.Tooltip("Share:Q", format=".1%"),
-            ],
+    with st.expander("Compare twelve complete random allocations"):
+        st.subheader("The same rule can produce different allocations")
+        st.write(
+            "Compare this run with twelve examples generated by the stated rule. "
+            "Each coloured segment is one court's share of the same total number of cases."
         )
-        .properties(height=440)
-    )
-    st.altair_chart(
-        comparison,
-        width="stretch",
-        alt=(
-            "One highlighted stacked bar shows this run; twelve stacked bars show complete "
-            "random allocations under the same expected probabilities and sample size."
-        ),
-    )
-    st.caption(
-        f"Every row totals {n_cases:,} cases. These fixed examples illustrate variation; "
-        f"the global check uses all {MC_SIMULATIONS:,} simulated allocations."
-    )
+        reference = reference_allocations(config.n_cases, config.null_probabilities)
+        labels = ["This run", *[f"Example {i + 1:02d}" for i in range(len(reference))]]
+        vectors = [[dataset.counts[court] for court in COURTS], *reference.tolist()]
+        comparison_data = pd.DataFrame(
+            [
+                {
+                    "Allocation": label,
+                    "Court": court,
+                    "Court order": index,
+                    "Assignments": counts[index],
+                    "Share": counts[index] / n_cases,
+                }
+                for label, counts in zip(labels, vectors, strict=True)
+                for index, court in enumerate(COURTS)
+            ]
+        )
+        comparison = (
+            alt.Chart(comparison_data)
+            .mark_bar()
+            .encode(
+                y=alt.Y("Allocation:N", sort=labels, title=None, axis=alt.Axis(labelOverlap=False)),
+                x=alt.X(
+                    "Share:Q",
+                    stack="zero",
+                    title="Share of assignments",
+                    scale=alt.Scale(domain=[0, 1]),
+                    axis=alt.Axis(format=".0%"),
+                ),
+                color=alt.Color(
+                    "Court:N",
+                    sort=list(COURTS),
+                    scale=alt.Scale(
+                        domain=list(COURTS), range=["#167D9A", "#8262AB", "#C58C31", "#A6B6C9"]
+                    ),
+                    legend=alt.Legend(orient="top", title=None, columns=2),
+                ),
+                order=alt.Order("Court order:Q"),
+                stroke=alt.condition(
+                    alt.datum.Allocation == "This run",
+                    alt.value("#132A43"),
+                    alt.value("transparent"),
+                ),
+                strokeWidth=alt.value(1),
+                tooltip=[
+                    "Allocation:N",
+                    "Court:N",
+                    "Assignments:Q",
+                    alt.Tooltip("Share:Q", format=".1%"),
+                ],
+            )
+            .properties(height=440)
+        )
+        st.altair_chart(
+            comparison,
+            width="stretch",
+            alt=(
+                "One highlighted stacked bar shows this run; twelve stacked bars show complete "
+                "random allocations under the same expected probabilities and sample size."
+            ),
+        )
+        st.caption(
+            f"Every row totals {n_cases:,} cases. These fixed examples illustrate variation; "
+            f"the global check uses all {MC_SIMULATIONS:,} simulated allocations."
+        )
 
     with st.expander("Show the global test details"):
         st.write(
@@ -262,37 +363,6 @@ with overview:
             "using this run's sample size and the stated probabilities. Their selection is fixed."
         )
 
-    st.divider()
-    st.subheader("A separate question, chosen in advance: Court A")
-    st.write(
-        "Before generating data, we selected Court A and asked only whether it receives "
-        "unusually many assignments relative to its 40% chance."
-    )
-    target_columns = st.columns(2)
-    target_columns[0].metric(
-        "Court A observed / expected",
-        f"{dataset.counts['Court A']:,} / {count_text(n_cases * 0.4)}",
-    )
-    target_columns[1].metric("Difference from its 40% share", f"{target.lift_pp:+.1f} pp")
-    st.markdown(f"**{court_a_reading.headline}**")
-    st.write(court_a_reading.explanation)
-    st.caption(
-        "This planned question is separate from the global check. Neither result identifies "
-        "a cause or proves that the allocation process is fair."
-    )
-    with st.expander("Show the Court A test details"):
-        st.metric(
-            "Exact enrichment p-value",
-            p_text(
-                target.p_value, underflow=target.p_value_underflow, log_value=target.log_p_value
-            ),
-        )
-        st.write(
-            "The exact one-sided binomial calculation is P(X ≥ observed | n, p₀ = 0.40). "
-            "The reading guide uses 5% for this preselected excess question only. "
-            "It is not a test for a shortfall and the p-value is not a probability of fraud."
-        )
-
     with st.expander("Explore all four courts — adjusted comparisons"):
         st.write(
             "This is a different question: which courts show an excess when all four are "
@@ -330,8 +400,9 @@ with overview:
 with methodology:
     st.subheader("Three questions, three different readings")
     st.write(
-        "The main summary checks the whole four-court allocation. The planned Court A question "
-        "looks only for an excess in that court. The optional exploration checks all four courts "
+        "The first graphic shows the planned Court A question, which looks only for an excess. "
+        "The global check below it assesses the whole four-court allocation. "
+        "The optional exploration checks all four courts "
         "with a multiple-testing adjustment. These are separate questions, not a combined verdict."
     )
     with st.expander("What the model assumes"):

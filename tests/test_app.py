@@ -14,6 +14,8 @@ class AppFlowTests(unittest.TestCase):
         app = self.open_app()
         self.assertEqual(len(app.exception), 0)
         self.assertEqual(app.title[0].value, "Court Assignment Audit")
+        self.assertEqual(app.subheader[0].value, "Court A's count under the stated 40% rule")
+        self.assertIn("Show the Court A calculation", [item.label for item in app.expander])
         self.assertIn(
             "does not show a clear departure", " ".join(item.value for item in app.markdown)
         )

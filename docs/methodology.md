@@ -18,9 +18,11 @@ All labels and records are synthetic. The app provides no inference about an act
 
 ## Reading the interface
 
-The analysis starts with the fictional assignment rule and a plain-language reading of the **whole allocation**. The observed-versus-expected chart then shows the magnitude of the differences. Expected counts are averages over repeated allocations, not quotas. The largest share gap is selected descriptively; its size alone is not an adjusted finding about that court.
+The analysis starts with the fictional assignment rule and the **planned Court A enrichment question**. Its observed and expected counts lead into the exact binomial graphic described below, connecting a visible count difference with the probability of that count or a larger one. Expected counts are averages over repeated allocations, not quotas.
 
-The global headline uses a 5% reference and accounts for finite-simulation uncertainty:
+The whole-allocation analysis follows separately and remains the primary model check. This teaching order does not change the hypotheses, inferential roles, calculations, or numerical exports. The four-court count chart describes the magnitude of differences; the largest share gap is selected descriptively and is not itself an adjusted finding about that court.
+
+The separate global headline uses a 5% reference and accounts for finite-simulation uncertainty:
 
 | Displayed reading | Condition |
 | --- | --- |
@@ -30,9 +32,9 @@ The global headline uses a 5% reference and accounts for finite-simulation uncer
 
 With `n = 1`, the headline instead notes that one assignment cannot establish a stable allocation pattern. This is a presentation rule, not a new test: the underlying statistic, corrected p-value, simulation diagnostics, and numerical exports are unchanged. The interval concerns the null tail probability estimated by Monte Carlo, as detailed below. The 5% reference is not a boundary between fair and unfair processes. Absence of a clear departure does not prove randomness, and an unusual result does not establish misconduct.
 
-The comparison chart shows this run alongside the **first twelve complete count vectors** drawn from `Multinomial(n, p)` with fixed seed `271828`. It uses the same `n` and known null probabilities as the global test, regardless of which scenario generated the observed data. Each vector sums to `n`; the courts are not simulated as independent binomial counts. Examples are not selected for their similarity to the data, extremeness, or test results. They illustrate variation without adding a test, confidence band, or simultaneous inference. The global calculation uses all `20,000` simulations, not just the twelve displayed examples.
+An optional, initially collapsed comparison chart shows this run alongside the **first twelve complete count vectors** drawn from `Multinomial(n, p)` with fixed seed `271828`. It uses the same `n` and known null probabilities as the global test, regardless of which scenario generated the observed data. Each vector sums to `n`; the courts are not simulated as independent binomial counts. Examples are not selected for their similarity to the data, extremeness, or test results. They illustrate variation without adding a test, confidence band, or simultaneous inference. The global calculation uses all `20,000` simulations, not just the twelve displayed examples.
 
-The planned Court A reading remains separate from the global summary. The four-court Holm exploration, p-values, and technical details are available in expandable sections; **How to read this** explains assumptions and limits. **Data & run log** provides the same synthetic assignments and numerical analysis metadata for reproduction.
+The four-court Holm exploration and technical details are available in expandable sections; **How to read this** explains assumptions and limits. **Data & run log** provides the same synthetic assignments and numerical analysis metadata for reproduction.
 
 ## Primary analysis: global multinomial comparison
 
@@ -71,6 +73,12 @@ P(X_A >= k | n, p_A = 0.40)
 The tail includes the observed count and is calculated from the binomial distribution directly, without a normal approximation, using [`scipy.stats.binomtest` with `alternative="greater"`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binomtest.html). In particular, a zero observed count has an upper-tail p-value of one. This is a test for excess assignments; a deficit is not evidence against its one-sided alternative.
 
 The plain-language Court A reading describes an unusual excess only when the observed count exceeds its expectation and its exact upper-tail p-value is below `0.05`. A result at or above `0.05` is not a clear excess under this reading guide. A count equal to expectation is described as matching the expected count; a lower count receives an explicit reminder that the test does not assess a shortfall. This exact calculation has no Monte Carlo uncertainty interval, and its conclusion is not inferred from the global result. The Court A and global questions are separate, but their results are not statistically independent because they use the same allocation.
+
+The Court A graphic plots the discrete probability mass function: each bar at integer count `x` has height `P(X_A = x | n, p_A = 0.40)`. Markers locate the observed count `k` and expected count `0.40 * n`. Colour identifies the inclusive upper tail `x >= k`. The full distribution has support `0, ..., n`; the tail probability sums its probabilities from `k` through `n`. It is not an area under a smooth curve or a probability recomputed from a cropped display. There is no normal approximation, density smoothing, or renormalization of the displayed bars.
+
+The displayed range includes `k` and the expected-count marker. It omits at most `1e-6` of the total probability and, when the upper tail is positive, at most `1e-6` of that tail's probability. The relative-tail check uses log probabilities even when the tail is too small for a floating-point value. Cropping changes neither bar heights nor the reported tail probability.
+
+For probabilities from `0.01` through `0.5`, the app offers an approximate frequency per 100 repeated allocations, such as "40 in 100" for 40%. For probabilities from `1e-6` up to but excluding `0.01`, it uses "1 in X", with `X = 1 / p`. The repetitions are complete allocations of the same `n` cases under the same rule; the event is Court A receiving at least `k` cases. It is a conditional frequency interpretation, not the chance that the model is true, a prediction of the next allocation, or a guarantee about a finite set of repetitions. Larger probabilities and reciprocal counts above one million use the probability alone.
 
 Extremely small nonzero tails can underflow floating-point arithmetic. Such results carry an explicit underflow flag and a finite natural-log p-value. The interface displays a power of ten; JSON exports use `null` for the unrepresentable numeric p-value and retain its log value. Holm adjustment is also computed in log space. An event outside a zero-probability category's null support has a genuinely zero tail and is distinguished from numerical underflow.
 

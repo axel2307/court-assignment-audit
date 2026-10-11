@@ -110,7 +110,7 @@ def global_reading(result: GlobalTestResult, n_cases: int, reference: float = 0.
 
 def target_reading(result: TargetTestResult) -> Reading:
     """Read the fixed, preselected one-sided enrichment check at 5%."""
-    if result.observed_count == result.expected_count:
+    if isclose(result.observed_count, result.expected_count, rel_tol=0, abs_tol=1e-10):
         return Reading(
             status="no_clear_excess",
             headline="The preselected court matches the expected count",
